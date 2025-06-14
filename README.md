@@ -23,8 +23,5 @@ uv run server.py --server_type=sse
 
 - Run the client (choose the appropriate client script,  `ollama_client.py` for Ollama):
 
-```sh
-uv run client.py
-```
 
 - Interact with the agent in your terminal. Type your message and the agent will use the available tools to answer your queries.
