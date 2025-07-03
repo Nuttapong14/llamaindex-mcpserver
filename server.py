@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP('sqlite-demo')
 
+# Init database and create table if not exists
 def init_db():
     conn = sqlite3.connect('demo.db')
     cursor = conn.cursor()
@@ -19,35 +20,24 @@ def init_db():
     return conn, cursor
 
 @mcp.tool()
-def add_data(query: str) -> bool:
+def add_data(name: str, age: int, profession: str) -> bool:
     """
-    Add new data to the people table using a SQL INSERT query.
+    Add a person to the people table.
 
     Args:
-        query (str): SQL INSERT query following this format:
-            INSERT INTO people (name, age, profession)
-            VALUES ('John Doe', 30, 'Engineer')
-        
-    Schema:
-        - name: Text field (required)
-        - age: Integer field (required)
-        - profession: Text field (required)
-        Note: 'id' field is auto-generated
-    
+        name (str): Name of the person
+        age (int): Age of the person
+        profession (str): Job/profession
+
     Returns:
-        bool: True if data was added successfully, False otherwise
-    
-    Example:
-        >>> query = '''
-        ... INSERT INTO people (name, age, profession)
-        ... VALUES ('Alice Smith', 25, 'Developer')
-        ... '''
-        >>> add_data(query)
-        True
+        bool: True if insert successful
     """
     conn, cursor = init_db()
     try:
-        cursor.execute(query)
+        cursor.execute(
+            "INSERT INTO people (name, age, profession) VALUES (?, ?, ?)",
+            (name, age, profession)
+        )
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -58,28 +48,7 @@ def add_data(query: str) -> bool:
 
 @mcp.tool()
 def read_data(query: str = "SELECT * FROM people") -> list:
-    """Read data from the people table using a SQL SELECT query.
-
-    Args:
-        query (str, optional): SQL SELECT query. Defaults to "SELECT * FROM people".
-            Examples:
-            - "SELECT * FROM people"
-            - "SELECT name, age FROM people WHERE age > 25"
-            - "SELECT * FROM people ORDER BY age DESC"
-    
-    Returns:
-        list: List of tuples containing the query results.
-              For default query, tuple format is (id, name, age, profession)
-    
-    Example:
-        >>> # Read all records
-        >>> read_data()
-        [(1, 'John Doe', 30, 'Engineer'), (2, 'Alice Smith', 25, 'Developer')]
-        
-        >>> # Read with custom query
-        >>> read_data("SELECT name, profession FROM people WHERE age < 30")
-        [('Alice Smith', 'Developer')]
-    """
+    """Read data from the people table using a SQL SELECT query."""
     conn, cursor = init_db()
     try:
         cursor.execute(query)
@@ -91,21 +60,38 @@ def read_data(query: str = "SELECT * FROM people") -> list:
         conn.close()
 
 @mcp.tool()
-def update_data(query: str) -> bool:
+def update_data(name: str, age: int = None, profession: str = None) -> bool:
     """
-    Update existing data in the people table using a SQL UPDATE query.
+    Update existing data in the people table by name.
 
     Args:
-        query (str): SQL UPDATE query.
-            Example:
-                UPDATE people SET age = 31 WHERE name = 'John Doe'
-    
+        name (str): Name of the person to update
+        age (int, optional): New age
+        profession (str, optional): New profession
+
     Returns:
         bool: True if update was successful, False otherwise.
     """
+    if age is None and profession is None:
+        print("No fields to update")
+        return False
+
     conn, cursor = init_db()
     try:
-        cursor.execute(query)
+        updates = []
+        values = []
+
+        if age is not None:
+            updates.append("age = ?")
+            values.append(age)
+        if profession is not None:
+            updates.append("profession = ?")
+            values.append(profession)
+
+        values.append(name)
+
+        sql = f"UPDATE people SET {', '.join(updates)} WHERE name = ?"
+        cursor.execute(sql, tuple(values))
         conn.commit()
         return cursor.rowcount > 0
     except sqlite3.Error as e:
@@ -115,21 +101,19 @@ def update_data(query: str) -> bool:
         conn.close()
 
 @mcp.tool()
-def delete_data(query: str) -> bool:
+def delete_data(name: str) -> bool:
     """
-    Delete records from the people table using a SQL DELETE query.
+    Delete a person from the people table by name.
 
     Args:
-        query (str): SQL DELETE query.
-            Example:
-                DELETE FROM people WHERE name = 'John Doe'
-    
+        name (str): Name of the person to delete
+
     Returns:
         bool: True if deletion was successful, False otherwise.
     """
     conn, cursor = init_db()
     try:
-        cursor.execute(query)
+        cursor.execute("DELETE FROM people WHERE name = ?", (name,))
         conn.commit()
         return cursor.rowcount > 0
     except sqlite3.Error as e:
@@ -138,40 +122,12 @@ def delete_data(query: str) -> bool:
     finally:
         conn.close()
 
+
 if __name__ == "__main__":
-    # Start the server
-    print("🚀Starting server... ")
-
-    # Debug Mode
-    #  uv run mcp dev server.py
-
-    # Production Mode
-    # uv run server.py --server_type=sse
-
+    print("🚀 Starting MCP SQLite Server...")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--server_type", type=str, default="sse", choices=["sse", "stdio"]
     )
-
     args = parser.parse_args()
     mcp.run(args.server_type)
-
-
-
-# # Example usage
-# if __name__ == "__main__":
-#     # Example INSERT query
-#     insert_query = """
-#     INSERT INTO people (name, age, profession)
-#     VALUES ('John Doe', 30, 'Engineer')
-#     """
-    
-#     # Add data
-#     if add_data(insert_query):
-#         print("Data added successfully")
-    
-#     # Read all data
-#     results = read_data()
-#     print("\nAll records:")
-#     for record in results:
-#         print(record)
